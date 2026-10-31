@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DevPulse</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#1d2433;--muted:#6b7385;--line:#e1e4ea;--accent:#4f46e5;--danger:#dc2626;--bar:#4f46e5}
+@media(prefers-color-scheme:dark){:root{--bg:#12151c;--card:#1b2030;--text:#e6e9f0;--muted:#98a0b3;--line:#2b3247;--accent:#818cf8;--bar:#818cf8;--danger:#f87171}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;font:15px/1.45 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+main{max-width:640px;margin:0 auto;padding:24px 16px}
+h1{font-size:22px;margin:0 0 2px}
+.sub{color:var(--muted);margin:0 0 18px}
+form{display:flex;flex-wrap:wrap;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+input,select,button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+#what{flex:1 1 260px}
+#mins{width:110px}
+button{cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:hover{border-color:var(--accent)}
+#auth{max-width:380px;margin:8vh auto 0}
+#auth form{flex-direction:column;padding:18px}
+#auth input{width:100%}
+.err{color:var(--danger);min-height:1.3em;margin:0}
+.link{background:none;border:none;color:var(--accent);padding:0;text-decoration:underline}
+.who{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;color:var(--muted)}
+.who button{padding:2px 8px;font-size:12px}
+.total{margin:18px 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.total b{font-size:18px}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin-bottom:8px}
+li .w{flex:1;overflow-wrap:anywhere}
+li .d{color:var(--muted);white-space:nowrap}
+li button{padding:2px 8px;font-size:12px;color:var(--danger)}
+.empty{color:var(--muted);text-align:center;padding:20px}
+.week{margin-top:28px}
+.wcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;position:relative}
+.wtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.note{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);border-radius:8px;padding:8px 12px;margin-bottom:8px}
+#chart{width:100%;height:auto;display:block}
+#chart text{fill:var(--muted);font-size:11px}
+#chart .grid{stroke:var(--line);stroke-width:1}
+#chart .bar{fill:var(--bar)}
+#chart .hit{fill:transparent;cursor:pointer}
+#chart .hit:hover+.bar,#chart .hit:focus+.bar{opacity:.75}
+#tip{position:absolute;pointer-events:none;background:var(--text);color:var(--bg);border-radius:6px;padding:4px 8px;font-size:12px;white-space:nowrap;transform:translate(-50%,-100%)}
+.wd{display:grid;grid-template-columns:100px 90px 1fr;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+.wd .wi{color:var(--muted);overflow-wrap:anywhere}
+@media(max-width:480px){.wd{grid-template-columns:90px 80px 1fr}}
+</style>
+</head>
+<body>
+<main>
+  <section id="auth" hidden>
+    <h1>DevPulse</h1>
+    <p class="sub" id="authsub">Log in to see your work log.</p>
+    <form id="af">
+      <input id="au" placeholder="Username" required maxlength="32" autocomplete="username">
+      <input id="ap" type="password" placeholder="Password" required minlength="8" maxlength="128" autocomplete="current-password">
+      <div id="reg" hidden style="display:flex;flex-direction:column;gap:8px">
+        <input id="an" placeholder="Full name" maxlength="80" autocomplete="name">
+        <input id="ae" type="email" placeholder="Email" maxlength="120" autocomplete="email">
+        <input id="at" placeholder="Team / role (optional)" maxlength="80">
+      </div>
+      <p class="err" id="aerr" role="alert"></p>
+      <button class="primary" id="asubmit">Log in</button>
+      <button type="button" class="link" id="atoggle">No account? Create one</button>
+    </form>
+  </section>
+
+  <section id="app" hidden>
+    <h1>DevPulse</h1>
+    <p class="sub" id="date"></p>
+    <div class="who"><span id="whotxt"></span><button type="button" id="logout">Log out</button></div>
+
+    <form id="f">
+      <input id="what" placeholder="What did you work on?" required maxlength="200">
+      <input id="mins" type="number" min="1" max="1440" step="1" placeholder="Minutes" required>
+      <button class="primary">Add</button>
+    </form>
+    <p class="err" id="ferr" role="alert"></p>
+
+    <div class="total"><span>Today</span><b id="total"></b></div>
+    <ul id="list"></ul>
+
+    <section class="week">
+      <div class="total"><b>Weekly summary</b><select id="wsel" aria-label="Choose week"></select></div>
+      <div id="wnote" class="note" hidden>The week is ending. Copy your summary below to send or save it.</div>
+      <div class="wcard">
+        <div class="wtop"><span>Total <b id="wtotal"></b></span><button type="button" id="wcopy">Copy summary</button></div>
+        <svg id="chart" viewBox="0 0 600 220" role="img" aria-label="Minutes worked per day this week"></svg>
+        <div id="tip" hidden></div>
+        <div id="wdays"></div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const today=()=>iso(new Date());
+const parse=s=>new Date(s+"T12:00:00");
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
+const weekOf=s=>{const d=parse(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d)};
+const dayName=s=>parse(s).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+function fmt(m){const h=Math.floor(m/60),r=m%60;return h&&r?`${h} h ${r} min`:h?`${h} h`:`${r} min`}
+const sum=l=>l.reduce((a,i)=>a+i.mins,0);
+let items=[],user=null,pickedWeek=null,registering=false;
+
+/* ---- API ---- */
+async function api(method,path,body){
+  const opt={method,headers:{},credentials:"same-origin"};
+  if(body!==undefined){opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(body)}
+  let r;
+  try{r=await fetch(path,opt)}catch{return{ok:false,status:0,data:{error:"Cannot reach the server."}}}
+  let data=null;try{data=await r.json()}catch{}
+  return{ok:r.ok,status:r.status,data:data||{}};
+}
+
+/* ---- auth ---- */
+function showAuth(){
+  user=null;items=[];
+  $("#app").hidden=true;$("#auth").hidden=false;
+  $("#af").reset();$("#aerr").textContent="";setMode(false);
+}
+function setMode(reg){
+  registering=reg;
+  $("#reg").hidden=!reg;
+  $("#an").required=$("#ae").required=reg;
+  $("#authsub").textContent=reg?"Create your account.":"Log in to see your work log.";
+  $("#asubmit").textContent=reg?"Create account":"Log in";
+  $("#atoggle").textContent=reg?"Have an account? Log in":"No account? Create one";
+  $("#ap").autocomplete=reg?"new-password":"current-password";
+  $("#aerr").textContent="";
+}
+$("#atoggle").onclick=()=>setMode(!registering);
+$("#af").onsubmit=async e=>{
+  e.preventDefault();
+  const body={username:$("#au").value.trim(),password:$("#ap").value};
+  if(registering)Object.assign(body,{name:$("#an").value.trim(),email:$("#ae").value.trim(),team:$("#at").value.trim()});
+  $("#asubmit").disabled=true;
+  const r=await api("POST",registering?"/api/register":"/api/login",body);
+  $("#asubmit").disabled=false;
+  if(!r.ok){$("#aerr").textContent=r.data.error||"Something went wrong.";return}
+  $("#ap").value="";
+  await enter();
+};
+$("#logout").onclick=async()=>{await api("POST","/api/logout",{});showAuth()};
+
+async function enter(){
+  const me=await api("GET","/api/me");
+  if(!me.ok){showAuth();return}
+  user=me.data;
+  const en=await api("GET","/api/entries");
+  items=en.ok?en.data:[];
+  $("#auth").hidden=true;$("#app").hidden=false;
+  render();
+}
+
+/* ---- weekly summary + chart ---- */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs,text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e}
+function niceMax(m){const step=m<=120?30:60;return Math.max(step*2,Math.ceil(m/step)*step)}
+function showTip(x,y,txt){const t=$("#tip");t.textContent=txt;t.hidden=false;t.style.left=x+"px";t.style.top=y+"px"}
+function drawChart(days,list){
+  const svg=$("#chart");svg.textContent="";
+  const W=600,H=220,L=64,R=8,T=14,B=28,pw=W-L-R,ph=H-T-B;
+  const vals=days.map(d=>sum(list.filter(i=>i.date===d)));
+  const max=niceMax(Math.max(...vals)),ticks=4;
+  for(let i=0;i<=ticks;i++){
+    const v=max/ticks*i,y=T+ph-ph*v/max;
+    svg.append(el("line",{x1:L,x2:W-R,y1:y,y2:y,class:"grid"}));
+    svg.append(el("text",{x:L-6,y:y+4,"text-anchor":"end"},v?fmt(Math.round(v)):"0"));
+  }
+  const col=pw/7,bw=Math.min(36,col*.6);
+  days.forEach((d,i)=>{
+    const cx=L+col*i+col/2,v=vals[i],h=ph*v/max,x=cx-bw/2,y=T+ph-h;
+    svg.append(el("text",{x:cx,y:H-8,"text-anchor":"middle"},parse(d).toLocaleDateString(undefined,{weekday:"short"})));
+    const hit=el("rect",{x:L+col*i,y:T,width:col,height:ph,class:"hit",tabindex:0,"aria-label":`${dayName(d)}: ${v?fmt(v):"nothing logged"}`});
+    const r=Math.min(4,h);
+    const bar=v?el("path",{class:"bar",d:`M${x},${T+ph}V${y+r}Q${x},${y} ${x+r},${y}H${x+bw-r}Q${x+bw},${y} ${x+bw},${y+r}V${T+ph}Z`}):el("rect",{x,y:T+ph-2,width:bw,height:2,class:"bar",opacity:.25});
+    const tip=()=>{const b=svg.getBoundingClientRect(),c=svg.parentElement.getBoundingClientRect(),s=b.width/W;
+      showTip(b.left-c.left+cx*s,b.top-c.top+Math.max(y,T+10)*s-4,`${dayName(d)} · ${v?fmt(v):"nothing logged"}`)};
+    hit.onmouseenter=hit.onfocus=tip;hit.onmouseleave=hit.onblur=()=>$("#tip").hidden=true;
+    svg.append(hit,bar);
+  });
+}
+function weekText(ws){
+  const days=Array.from({length:7},(_,i)=>addDays(ws,i)),list=items.filter(i=>i.date>=ws&&i.date<=days[6]);
+  const lines=[`DevPulse weekly summary: ${ws} to ${days[6]}`];
+  if(user)lines.push(`${user.name} <${user.email}>${user.team?" ("+user.team+")":""}`);
+  lines.push(`Total: ${fmt(sum(list))}`,"");
+  days.forEach(d=>{
+    const di=list.filter(i=>i.date===d);if(!di.length)return;
+    lines.push(`${dayName(d)}: ${fmt(sum(di))}`);di.forEach(i=>lines.push(`  - ${i.what} (${fmt(i.mins)})`));
+  });
+  if(!list.length)lines.push("Nothing logged this week.");
+  return lines.join("\n");
+}
+function renderWeek(){
+  const cur=weekOf(today());
+  const weeks=[...new Set([cur,...items.map(i=>weekOf(i.date))])].sort().reverse();
+  if(!weeks.includes(pickedWeek))pickedWeek=cur;
+  const sel=$("#wsel");sel.textContent="";
+  weeks.forEach(w=>{const o=document.createElement("option");o.value=w;o.textContent=(w===cur?"This week · ":"")+w+" to "+addDays(w,6);o.selected=w===pickedWeek;sel.append(o)});
+  const ws=pickedWeek,days=Array.from({length:7},(_,i)=>addDays(ws,i)),list=items.filter(i=>i.date>=ws&&i.date<=days[6]);
+  $("#wtotal").textContent=fmt(sum(list));
+  $("#wnote").hidden=!(ws===cur&&(new Date().getDay()+6)%7>=4);
+  drawChart(days,list);
+  const box=$("#wdays");box.textContent="";
+  days.forEach(d=>{
+    const di=list.filter(i=>i.date===d),row=document.createElement("div");row.className="wd";
+    const a=document.createElement("span"),b=document.createElement("span"),c=document.createElement("span");
+    a.textContent=dayName(d);b.textContent=di.length?fmt(sum(di)):"–";c.className="wi";c.textContent=di.map(i=>i.what).join(" · ");
+    row.append(a,b,c);box.append(row);
+  });
+}
+$("#wsel").onchange=e=>{pickedWeek=e.target.value;renderWeek()};
+$("#wcopy").onclick=async()=>{
+  const t=weekText(pickedWeek),b=$("#wcopy");
+  try{await navigator.clipboard.writeText(t);b.textContent="Copied!"}catch{window.prompt("Copy your summary:",t)}
+  setTimeout(()=>b.textContent="Copy summary",1500);
+};
+
+/* ---- today ---- */
+function renderToday(){
+  const list=items.filter(i=>i.date===today());
+  $("#date").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  $("#whotxt").textContent=user.name+" · "+user.email+(user.team?" · "+user.team:"");
+  $("#total").textContent=fmt(sum(list));
+  const ul=$("#list");ul.textContent="";
+  if(!list.length){const e=document.createElement("div");e.className="empty";e.textContent="Nothing logged yet today.";ul.append(e);return}
+  list.forEach(i=>{
+    const li=document.createElement("li"),w=document.createElement("span"),d=document.createElement("span"),b=document.createElement("button");
+    w.className="w";w.textContent=i.what;d.className="d";d.textContent=fmt(i.mins);
+    b.textContent="Delete";b.onclick=async()=>{
+      const r=await api("DELETE","/api/entries/"+i.id);
+      if(r.status===401)return showAuth();
+      if(r.ok){items=items.filter(x=>x.id!==i.id);render()}else $("#ferr").textContent=r.data.error||"Could not delete.";
+    };
+    li.append(w,d,b);ul.append(li);
+  });
+}
+function render(){renderToday();renderWeek()}
+
+$("#f").onsubmit=async e=>{
+  e.preventDefault();
+  const what=$("#what").value.trim(),mins=parseInt($("#mins").value,10);
+  if(!what||!(mins>0))return;
+  const r=await api("POST","/api/entries",{what,mins,date:today()});
+  if(r.status===401)return showAuth();
+  if(!r.ok){$("#ferr").textContent=r.data.error||"Could not save.";return}
+  $("#ferr").textContent="";items.push(r.data);
+  $("#f").reset();$("#what").focus();render();
+};
+enter();
+</script>
+</body>
+</html>

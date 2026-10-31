@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DevTrack</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#1d2433;--muted:#6b7385;--line:#e1e4ea;--accent:#4f46e5;
+--todo:#64748b;--doing:#d97706;--review:#7c3aed;--done:#059669;--high:#dc2626;--med:#d97706;--low:#2563eb}
+@media(prefers-color-scheme:dark){:root{--bg:#12151c;--card:#1b2030;--text:#e6e9f0;--muted:#98a0b3;--line:#2b3247;--accent:#818cf8}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0}
+main{max-width:1200px;margin:0 auto;padding:16px 20px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stat b{display:block;font-size:22px}.stat span{color:var(--muted);font-size:12px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+input,select,textarea,button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+button{cursor:pointer}button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.sm{padding:2px 8px;font-size:12px}
+.tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:start}
+.col{background:color-mix(in srgb,var(--line) 40%,transparent);border-radius:8px;padding:10px;min-height:120px}
+.col.over{outline:2px dashed var(--accent)}
+.col h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;display:flex;justify-content:space-between}
+.card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--low);border-radius:6px;padding:9px 10px;margin-bottom:8px;cursor:grab}
+.card.high{border-left-color:var(--high)}.card.medium{border-left-color:var(--med)}.card.low{border-left-color:var(--low)}
+.card .t{font-weight:600}.card .m{color:var(--muted);font-size:12px;margin-top:4px;display:flex;flex-wrap:wrap;gap:8px}
+.card .a{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+.tag{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);padding:0 6px;border-radius:10px}
+.overdue{color:var(--high);font-weight:600}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:8px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--muted);font-size:12px}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);width:min(480px,92vw)}
+dialog::backdrop{background:#0008}
+label{display:block;margin:8px 0 3px;color:var(--muted);font-size:12px}
+dialog input,dialog select,dialog textarea{width:100%}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.empty{color:var(--muted);text-align:center;padding:16px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠 DevTrack</h1>
+  <div class="tabs">
+    <button data-v="board" class="on">Board</button>
+    <button data-v="time">Time log</button>
+  </div>
+  <div>
+    <button id="exp">Export</button>
+    <button id="imp">Import</button>
+    <button class="primary" id="add">+ New task</button>
+    <input type="file" id="file" accept=".json" hidden>
+  </div>
+</header>
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Search tasks…" style="flex:1;min-width:160px">
+    <select id="fp"><option value="">All projects</option></select>
+    <select id="ft"><option value="">All types</option><option>Feature</option><option>Bug</option><option>Refactor</option><option>Review</option><option>Docs</option><option>Meeting</option></select>
+  </div>
+  <section id="board" class="board"></section>
+  <section id="time" hidden></section>
+  <section id="weekly" style="margin-top:20px"></section>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <h3 id="dtitle" style="margin:0">Task</h3>
+    <label>Title</label><input name="title" required>
+    <div class="row">
+      <div><label>Project</label><input name="project" list="projects" placeholder="e.g. api-service"></div>
+      <div><label>Type</label><select name="type"><option>Feature</option><option>Bug</option><option>Refactor</option><option>Review</option><option>Docs</option><option>Meeting</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>Priority</label><select name="priority"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></div>
+      <div><label>Status</label><select name="status"></select></div>
+    </div>
+    <div class="row">
+      <div><label>Due date</label><input type="date" name="due"></div>
+      <div><label>Estimate (hrs)</label><input type="number" name="est" min="0" step="0.25"></div>
+    </div>
+    <label>Ticket / PR link</label><input name="link" placeholder="https://…">
+    <label>Notes</label><textarea name="notes" rows="3"></textarea>
+    <datalist id="projects"></datalist>
+    <div style="display:flex;justify-content:space-between;margin-top:14px">
+      <button type="button" id="del" class="sm" style="color:var(--high)">Delete</button>
+      <span><button type="button" id="cancel">Cancel</button> <button class="primary">Save</button></span>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="tdlg">
+  <form method="dialog" id="tform">
+    <h3 style="margin:0">Log time</h3>
+    <p id="tname" style="color:var(--muted);margin:4px 0"></p>
+    <div class="row">
+      <div><label>Hours</label><input type="number" name="hours" min="0.25" step="0.25" value="1" required></div>
+      <div><label>Date</label><input type="date" name="date" required></div>
+    </div>
+    <label>Note</label><input name="note">
+    <div style="text-align:right;margin-top:14px"><button type="button" id="tcancel">Cancel</button> <button class="primary">Log</button></div>
+  </form>
+</dialog>
+
+<script>
+const STATUSES=[["todo","To do"],["doing","In progress"],["review","In review"],["done","Done"]];
+const KEY="devtrack.v1";
+let S=load(),editing=null,logging=null,view="board";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||{tasks:[]}}catch{return{tasks:[]}}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch{}render()}
+const hrs=t=>(t.logs||[]).reduce((a,l)=>a+l.hours,0);
+const weekStart=()=>{const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10)};
+
+function filtered(){
+  const q=$("#q").value.toLowerCase(),p=$("#fp").value,ty=$("#ft").value;
+  return S.tasks.filter(t=>(!p||t.project===p)&&(!ty||t.type===ty)&&(!q||(t.title+t.notes+t.project).toLowerCase().includes(q)));
+}
+function render(){
+  const projs=[...new Set(S.tasks.map(t=>t.project).filter(Boolean))].sort();
+  const cur=$("#fp").value;
+  $("#fp").innerHTML='<option value="">All projects</option>'+projs.map(p=>`<option ${p===cur?"selected":""}>${esc(p)}</option>`).join("");
+  $("#projects").innerHTML=projs.map(p=>`<option value="${esc(p)}">`).join("");
+  const ws=weekStart(),all=S.tasks;
+  const week=all.flatMap(t=>t.logs||[]).filter(l=>l.date>=ws).reduce((a,l)=>a+l.hours,0);
+  const open=all.filter(t=>t.status!=="done").length;
+  const over=all.filter(t=>t.due&&t.due<today()&&t.status!=="done").length;
+  const doneW=all.filter(t=>t.doneAt&&t.doneAt>=ws).length;
+  $("#stats").innerHTML=[[open,"Open tasks"],[all.filter(t=>t.status==="doing").length,"In progress"],[over,"Overdue"],[doneW,"Done this week"],[week.toFixed(1)+"h","Logged this week"]]
+    .map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+  $("#board").hidden=view!=="board";$("#time").hidden=view!=="time";
+  view==="board"?renderBoard():renderTime();
+  renderWeekly(ws);
+}
+function renderWeekly(ws){
+  const logs=S.tasks.flatMap(t=>(t.logs||[]).filter(l=>l.date>=ws).map(l=>({...l,t})));
+  const byProj={};logs.forEach(l=>byProj[l.t.project||"(none)"]=(byProj[l.t.project||"(none)"]||0)+l.hours);
+  const done=S.tasks.filter(t=>t.doneAt&&t.doneAt>=ws);
+  const total=logs.reduce((a,l)=>a+l.hours,0);
+  $("#weekly").innerHTML=`<h2 style="font-size:14px;margin:0 0 8px">Weekly summary <span style="color:var(--muted);font-weight:400">(since ${ws})</span></h2>
+   <div class="stat"><p style="margin:0 0 6px"><b style="display:inline;font-size:16px">${total.toFixed(1)}h</b> logged · <b style="display:inline;font-size:16px">${done.length}</b> done</p>
+   <p style="margin:0 0 6px">${Object.entries(byProj).map(([p,h])=>`<span class="tag">${esc(p)}: ${h.toFixed(1)}h</span>`).join(" ")||'<span style="color:var(--muted)">No time logged this week.</span>'}</p>
+   ${done.length?`<ul style="margin:0;padding-left:18px">${done.map(t=>`<li>${esc(t.title)}</li>`).join("")}</ul>`:""}</div>`;
+}
+function renderBoard(){
+  const ts=filtered();
+  $("#board").innerHTML=STATUSES.map(([k,l])=>{
+    const items=ts.filter(t=>t.status===k);
+    return `<div class="col" data-s="${k}"><h2 style="color:var(--${k})">${l}<span>${items.length}</span></h2>${
+      items.map(card).join("")||'<div class="empty">—</div>'}</div>`}).join("");
+  document.querySelectorAll(".card").forEach(c=>c.ondragstart=e=>e.dataTransfer.setData("id",c.dataset.id));
+  document.querySelectorAll(".col").forEach(c=>{
+    c.ondragover=e=>{e.preventDefault();c.classList.add("over")};
+    c.ondragleave=()=>c.classList.remove("over");
+    c.ondrop=e=>{e.preventDefault();move(e.dataTransfer.getData("id"),c.dataset.s)};
+  });
+}
+function card(t){
+  const od=t.due&&t.due<today()&&t.status!=="done";
+  const link=t.link&&/^https?:\/\//.test(t.link)?`<a href="${esc(t.link)}" target="_blank" rel="noopener">link ↗</a>`:"";
+  return `<div class="card ${t.priority}" draggable="true" data-id="${t.id}">
+   <div class="t">${esc(t.title)}</div>
+   <div class="m">${t.project?`<span class="tag">${esc(t.project)}</span>`:""}<span>${esc(t.type)}</span>
+   ${t.due?`<span class="${od?"overdue":""}">📅 ${t.due}</span>`:""}
+   <span>⏱ ${hrs(t).toFixed(1)}${t.est?"/"+t.est:""}h</span>${link}</div>
+   <div class="a"><button class="sm" onclick="edit('${t.id}')">Edit</button><button class="sm" onclick="logTime('${t.id}')">+ Time</button></div></div>`;
+}
+function renderTime(){
+  const rows=S.tasks.flatMap(t=>(t.logs||[]).map(l=>({...l,t}))).sort((a,b)=>b.date.localeCompare(a.date));
+  const byProj={};rows.forEach(r=>byProj[r.t.project||"(none)"]=(byProj[r.t.project||"(none)"]||0)+r.hours);
+  $("#time").innerHTML=`<p>${Object.entries(byProj).map(([p,h])=>`<span class="tag">${esc(p)}: ${h.toFixed(1)}h</span>`).join(" ")||""}</p>`+
+   (rows.length?`<table><tr><th>Date</th><th>Task</th><th>Project</th><th>Hours</th><th>Note</th></tr>${
+    rows.map(r=>`<tr><td>${r.date}</td><td>${esc(r.t.title)}</td><td>${esc(r.t.project)}</td><td>${r.hours}</td><td>${esc(r.note)}</td></tr>`).join("")}</table>`
+    :'<div class="empty">No time logged yet. Use “+ Time” on a task.</div>');
+}
+function move(id,status){
+  const t=S.tasks.find(x=>x.id===id);if(!t||t.status===status)return;
+  t.status=status;t.doneAt=status==="done"?today():null;save();
+}
+function edit(id){
+  editing=id?S.tasks.find(t=>t.id===id):null;
+  const f=$("#form");
+  f.status.innerHTML=STATUSES.map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
+  const t=editing||{title:"",project:"",type:"Feature",priority:"medium",status:"todo",due:"",est:"",link:"",notes:""};
+  for(const k of ["title","project","type","priority","status","due","est","link","notes"])f[k].value=t[k]??"";
+  $("#dtitle").textContent=editing?"Edit task":"New task";
+  $("#del").hidden=!editing;$("#dlg").showModal();
+}
+function logTime(id){
+  logging=S.tasks.find(t=>t.id===id);
+  $("#tname").textContent=logging.title;$("#tform").date.value=today();$("#tform").hours.value=1;$("#tform").note.value="";
+  $("#tdlg").showModal();
+}
+$("#form").onsubmit=()=>{
+  const f=$("#form"),d={};
+  for(const k of ["title","project","type","priority","status","due","link","notes"])d[k]=f[k].value.trim();
+  d.est=parseFloat(f.est.value)||0;  if(editing){
+    if(editing.status!==d.status)editing.doneAt=d.status==="done"?today():null;
+    Object.assign(editing,d);
+  }else S.tasks.push({id:crypto.randomUUID(),logs:[],created:today(),doneAt:d.status==="done"?today():null,...d});
+  save();
+};
+$("#tform").onsubmit=()=>{
+  const f=$("#tform");
+  (logging.logs??=[]).push({hours:parseFloat(f.hours.value),date:f.date.value,note:f.note.value.trim()});save();
+};
+$("#del").onclick=()=>{if(confirm("Delete this task?")){S.tasks=S.tasks.filter(t=>t!==editing);$("#dlg").close();save()}};
+$("#cancel").onclick=()=>$("#dlg").close();
+$("#tcancel").onclick=()=>$("#tdlg").close();
+$("#add").onclick=()=>edit(null);
+["#q","#fp","#ft"].forEach(s=>$(s).oninput=render);
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  view=b.dataset.v;document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));render();
+});
+$("#exp").onclick=()=>{
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:"application/json"}));
+  a.download=`devtrack-${today()}.json`;a.click();
+};
+$("#imp").onclick=()=>$("#file").click();
+$("#file").onchange=async e=>{
+  try{const d=JSON.parse(await e.target.files[0].text());
+    if(!Array.isArray(d.tasks))throw 0;
+    if(confirm("Replace current data with imported file?")){S=d;save()}
+  }catch{alert("Invalid DevTrack file.")}
+  e.target.value="";
+};
+render();
+</script>
+</body>
+</html>
