@@ -35,10 +35,15 @@ li .w{flex:1;overflow-wrap:anywhere}
 li .d{color:var(--muted);white-space:nowrap}
 li button{padding:2px 8px;font-size:12px;color:var(--danger)}
 .empty{color:var(--muted);text-align:center;padding:20px}
+.standup{margin-top:20px}
+#standup{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}
+#standup:empty::before{content:"No standup yet. Run /standup to create one.";color:var(--muted)}
 .week{margin-top:28px}
 .wcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;position:relative}
 .wtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .note{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);border-radius:8px;padding:8px 12px;margin-bottom:8px}
+.streaks{display:flex;gap:16px;color:var(--muted);margin-bottom:6px}
+.streaks b{color:var(--text)}
 #chart{width:100%;height:auto;display:block}
 #chart text{fill:var(--muted);font-size:11px}
 #chart .grid{stroke:var(--line);stroke-width:1}
@@ -85,11 +90,17 @@ li button{padding:2px 8px;font-size:12px;color:var(--danger)}
     <div class="total"><span>Today</span><b id="total"></b></div>
     <ul id="list"></ul>
 
+    <section class="standup">
+      <div class="total"><b>Standup</b></div>
+      <div class="wcard"><pre id="standup"></pre></div>
+    </section>
+
     <section class="week">
       <div class="total"><b>Weekly summary</b><select id="wsel" aria-label="Choose week"></select></div>
       <div id="wnote" class="note" hidden>The week is ending. Copy your summary below to send or save it.</div>
       <div class="wcard">
         <div class="wtop"><span>Total <b id="wtotal"></b></span><button type="button" id="wcopy">Copy summary</button></div>
+        <div class="streaks"><span>Streak <b id="streak"></b></span><span>Best streak <b id="beststreak"></b></span></div>
         <svg id="chart" viewBox="0 0 600 220" role="img" aria-label="Minutes worked per day this week"></svg>
         <div id="tip" hidden></div>
         <div id="wdays"></div>
@@ -98,12 +109,10 @@ li button{padding:2px 8px;font-size:12px;color:var(--danger)}
   </section>
 </main>
 
+<script src="/streak.js"></script>
 <script>
 const $=s=>document.querySelector(s);
-const iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
 const today=()=>iso(new Date());
-const parse=s=>new Date(s+"T12:00:00");
-const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
 const weekOf=s=>{const d=parse(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d)};
 const dayName=s=>parse(s).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
 function fmt(m){const h=Math.floor(m/60),r=m%60;return h&&r?`${h} h ${r} min`:h?`${h} h`:`${r} min`}
@@ -122,7 +131,7 @@ async function api(method,path,body){
 
 /* ---- auth ---- */
 function showAuth(){
-  user=null;items=[];
+  user=null;items=[];document.title="DevPulse";
   $("#app").hidden=true;$("#auth").hidden=false;
   $("#af").reset();$("#aerr").textContent="";setMode(false);
 }
@@ -156,6 +165,8 @@ async function enter(){
   user=me.data;
   const en=await api("GET","/api/entries");
   items=en.ok?en.data:[];
+  const su=await api("GET","/api/standup");
+  $("#standup").textContent=su.ok?su.data.text:"";
   $("#auth").hidden=true;$("#app").hidden=false;
   render();
 }
@@ -200,7 +211,10 @@ function weekText(ws){
   if(!list.length)lines.push("Nothing logged this week.");
   return lines.join("\n");
 }
+const dayWord=n=>n+(n===1?" day":" days");
 function renderWeek(){
+  const sd=calcStreaks([...new Set(items.map(i=>i.date))].sort(),today());
+  $("#streak").textContent=dayWord(sd.current);$("#beststreak").textContent=dayWord(sd.best);
   const cur=weekOf(today());
   const weeks=[...new Set([cur,...items.map(i=>weekOf(i.date))])].sort().reverse();
   if(!weeks.includes(pickedWeek))pickedWeek=cur;
@@ -231,6 +245,7 @@ function renderToday(){
   $("#date").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   $("#whotxt").textContent=user.name+" · "+user.email+(user.team?" · "+user.team:"");
   $("#total").textContent=fmt(sum(list));
+  document.title="DevPulse - "+fmt(sum(list));
   const ul=$("#list");ul.textContent="";
   if(!list.length){const e=document.createElement("div");e.className="empty";e.textContent="Nothing logged yet today.";ul.append(e);return}
   list.forEach(i=>{

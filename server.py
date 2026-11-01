@@ -196,19 +196,22 @@ def make_handler(state, secure_cookie=False):
         # ---- routing ----
         def do_GET(self):
             path = self.path.split("?", 1)[0]
-            if path in ("/", "/index.html"):
+            static = {"/": ("index.html", "text/html"), "/index.html": ("index.html", "text/html"),
+                      "/streak.js": ("streak.js", "text/javascript")}
+            if path in static:
+                name, ctype = static[path]
                 try:
-                    with open(os.path.join(HERE, "index.html"), "rb") as f:
+                    with open(os.path.join(HERE, name), "rb") as f:
                         body = f.read()
                 except OSError:
-                    return self.err(500, "index.html missing")
+                    return self.err(500, name + " missing")
                 self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Type", ctype + "; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Security-Policy",
-                                 "default-src 'self'; script-src 'unsafe-inline'; "
+                                 "default-src 'self'; script-src 'self' 'unsafe-inline'; "
                                  "style-src 'unsafe-inline'; frame-ancestors 'none'")
                 self.end_headers()
                 self.wfile.write(body)
@@ -222,6 +225,15 @@ def make_handler(state, secure_cookie=False):
                     return self.err(401, "Not logged in")
                 rows = state.run("SELECT id,date,what,mins FROM entries WHERE user_id=? ORDER BY id", (u["id"],))
                 return self.send_json(200, [dict(r) for r in rows])
+            if path == "/api/standup":
+                if not self.current_user():
+                    return self.err(401, "Not logged in")
+                try:
+                    with open(os.path.join(HERE, "data", "standup.md"), encoding="utf-8") as f:
+                        text = f.read().strip()
+                except OSError:
+                    text = ""
+                return self.send_json(200, {"text": text})
             self.err(404, "Not found")
 
         def do_POST(self):

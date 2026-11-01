@@ -67,6 +67,14 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(c2.call("POST", "/api/login", {"username": "alice", "password": "correct horse"})[0], 200)
         self.assertEqual(len(c2.call("GET", "/api/entries")[1]), 1)
 
+    def test_standup_requires_login_and_returns_text(self):
+        c = self.client()
+        self.assertEqual(c.call("GET", "/api/standup")[0], 401)
+        self.register(c, "standupuser")
+        s, body, _ = c.call("GET", "/api/standup")
+        self.assertEqual(s, 200)
+        self.assertIsInstance(body["text"], str)
+
     def test_bad_credentials_same_message(self):
         c = self.client()
         self.register(c, "bob")
